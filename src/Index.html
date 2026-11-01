@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <title>ReservABot - Boat Reservation System</title>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .container {
+      background: var(--card-bg);
+      width: 100%;
+      max-width: 600px;
+      border-radius: 8px;
+      padding: 2rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--border);
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--text); }
+    p.subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1.25rem; }
+    label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.35rem; }
+    input, select, textarea {
+      width: 100%;
+      padding: 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+    input:disabled, select:disabled { background-color: #f1f5f9; cursor: not-allowed; }
+    button {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 0.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    button:hover:not(:disabled) { background: var(--primary-hover); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .alert {
+      padding: 0.75rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      margin-bottom: 1.25rem;
+      display: none;
+    }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <? if (action === 'op_reject') { ?>
+      <!-- Operator Rejection Form -->
+      <h1>Decline Assignment</h1>
+      <p class="subtitle">Please provide a reason for declining this boat assignment.</p>
+      
+      <div id="alert-box" class="alert"></div>
+
+      <form id="reject-form" onsubmit="handleRejectSubmit(event)">
+        <div class="form-group">
+          <label for="reject-reason">Reason for Declining</label>
+          <textarea id="reject-reason" rows="3" required placeholder="e.g., Prior commitment, boat maintenance, unavailable..."></textarea>
+        </div>
+        <button type="submit" id="btn-reject" style="background: var(--danger);">Decline Assignment & Cancel</button>
+      </form>
+
+      <script>
+        function handleRejectSubmit(e) {
+          e.preventDefault();
+          const btn = document.getElementById('btn-reject');
+          const reason = document.getElementById('reject-reason').value;
+          btn.disabled = true;
+          
+          google.script.run
+            .withSuccessHandler((res) => {
+              showAlert(res.message, !res.success);
+              if (res.success) {
+                document.getElementById('reject-form').style.display = 'none';
+              } else {
+                btn.disabled = false;
+              }
+            })
+            .withFailureHandler((err) => {
+              showAlert(err.message || 'Error processing rejection.', true);
+              btn.disabled = false;
+            })
+            .processOperatorRejection('<?= reservationId ?>', reason);
+        }
+
+        function showAlert(msg, isError) {
+          const box = document.getElementById('alert-box');
+          box.textContent = msg;
+          box.className = 'alert ' + (isError ? 'alert-error' : 'alert-success');
+          box.style.display = 'block';
+        }
+      </script>
+
+    <? } else { ?>
+      <!-- Public Boat Reservation Form -->
+      <h1>Boat Reservation Request</h1>
+      <p class="subtitle">Davis Island Yacht Club - ReservABot</p>
+
+      <div id="alert-box" class="alert"></div>
+
+      <form id="reservation-form" onsubmit="handlePublicReservation(event)">
+        <div class="form-group">
+          <label for="req-name">Requester Name</label>
+          <input type="text" id="req-name" required placeholder="Captain Jane Doe">
+        </div>
+
+        <div class="form-group">
+          <label for="req-email">Requester Email</label>
+          <input type="email" id="req-email" required placeholder="jane@example.com">
+        </div>
+
+        <div class="form-group">
+          <label for="req-boat">Select Boat</label>
+          <select id="req-boat" required onchange="handleBoatChange(this.value)">
+            <option value="">-- Select a Boat --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="req-operator">Assigned Operator</label>
+          <select id="req-operator" required disabled>
+            <option value="">-- Select a Boat First --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="req-start">Start Date & Time</label>
+          <input type="datetime-local" id="req-start" required>
+        </div>
+
+        <div class="form-group">
+          <label for="req-end">End Date & Time</label>
+          <input type="datetime-local" id="req-end" required>
+        </div>
+
+        <div class="form-group">
+          <label for="req-purpose">Event / Purpose</label>
+          <textarea id="req-purpose" rows="2" placeholder="e.g. Mark Boat for Regatta"></textarea>
+        </div>
+
+        <button type="submit" id="btn-submit">Submit Reservation</button>
+      </form>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          loadBoatsDropdown();
+        });
+
+        function loadBoatsDropdown() {
+          const boatSelect = document.getElementById('req-boat');
+          const opSelect = document.getElementById('req-operator');
+          
+          boatSelect.innerHTML = '<option value="">Loading active boats...</option>';
+          opSelect.innerHTML = '<option value="">-- Select a Boat First --</option>';
+          opSelect.disabled = true;
+
+          google.script.run
+            .withSuccessHandler((boats) => {
+              boatSelect.innerHTML = '<option value="">-- Select a Boat --</option>';
+              if (boats && boats.length > 0) {
+                boats.forEach(b => {
+                  const opt = document.createElement('option');
+                  opt.value = b.id;
+                  opt.textContent = b.name;
+                  boatSelect.appendChild(opt);
+                });
+              } else {
+                boatSelect.innerHTML = '<option value="">No active boats found</option>';
+              }
+            })
+            .withFailureHandler((err) => {
+              showAlert('Failed to load boats list: ' + (err.message || err), true);
+              boatSelect.innerHTML = '<option value="">Error loading boats</option>';
+            })
+            .getActiveBoats();
+        }
+
+        function handleBoatChange(boatId) {
+          const opSelect = document.getElementById('req-operator');
+          if (!boatId) {
+            opSelect.innerHTML = '<option value="">-- Select a Boat First --</option>';
+            opSelect.disabled = true;
+            return;
+          }
+
+          opSelect.disabled = true;
+          opSelect.innerHTML = '<option value="">Loading qualified operators...</option>';
+
+          google.script.run
+            .withSuccessHandler((operators) => {
+              opSelect.innerHTML = '<option value="">-- Select an Operator --</option>';
+              if (operators && operators.length > 0) {
+                operators.forEach(op => {
+                  const opt = document.createElement('option');
+                  opt.value = op.name;
+                  opt.textContent = op.name;
+                  opSelect.appendChild(opt);
+                });
+                opSelect.disabled = false;
+              } else {
+                opSelect.innerHTML = '<option value="">No active operators assigned to this boat</option>';
+              }
+            })
+            .withFailureHandler((err) => {
+              showAlert('Failed to load operators: ' + (err.message || err), true);
+              opSelect.innerHTML = '<option value="">Error loading operators</option>';
+            })
+            .getOperatorsForBoat(boatId);
+        }
+
+        function handlePublicReservation(e) {
+          e.preventDefault();
+          const opSelect = document.getElementById('req-operator');
+          if (!opSelect.value || opSelect.value.startsWith('--')) {
+            showAlert('Please select a valid operator.', true);
+            return;
+          }
+
+          const btn = document.getElementById('btn-submit');
+          btn.disabled = true;
+
+          const payload = {
+            name: document.getElementById('req-name').value,
+            email: document.getElementById('req-email').value,
+            boat: document.getElementById('req-boat').value,
+            operator: opSelect.value,
+            start: document.getElementById('req-start').value,
+            end: document.getElementById('req-end').value,
+            purpose: document.getElementById('req-purpose').value
+          };
+
+          google.script.run
+            .withSuccessHandler((res) => {
+              btn.disabled = false;
+              showAlert(res.message, !res.success);
+              if (res.success) {
+                document.getElementById('reservation-form').reset();
+                handleBoatChange('');
+              }
+            })
+            .withFailureHandler((err) => {
+              btn.disabled = false;
+              showAlert(err.message || 'Error submitting reservation.', true);
+            })
+            .submitPublicReservation(payload);
+        }
+
+        function showAlert(msg, isError) {
+          const box = document.getElementById('alert-box');
+          box.textContent = msg;
+          box.className = 'alert ' + (isError ? 'alert-error' : 'alert-success');
+          box.style.display = 'block';
+        }
+      </script>
+    <? } ?>
+  </div>
+</body>
+</html>

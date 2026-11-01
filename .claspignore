@@ -1,0 +1,5 @@
+# Keep documentation and repo assets out of Apps Script bundle
+**/**.md
+.gitignore
+.claspignore
+docs/**
